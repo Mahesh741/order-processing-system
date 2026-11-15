@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: order-processing
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/orders}
+    username: ${DB_USER:orders}
+    password: ${DB_PASSWORD:orders}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  sql:
+    init:
+      mode: always
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: order-processor
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: io.github.mahesh741.orders.events.OrderCreated
+        spring.json.trusted.packages: io.github.mahesh741.orders.events
+
+app:
+  topics:
+    orders: orders.created
+    partitions: 3
+  retry:
+    attempts: 4        # 1 delivery + 3 retries, then the dead-letter topic
+    delay-ms: 1000     # 1 s, 2 s, 4 s
+    multiplier: 2.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
